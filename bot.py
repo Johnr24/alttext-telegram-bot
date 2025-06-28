@@ -24,24 +24,44 @@ USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
 ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',')] if ALLOWED_USER_IDS_STR else []
 FLORENCE2_TASK_PROMPT = os.getenv("FLORENCE2_TASK_PROMPT", "<DETAILED_CAPTION>")
-# --- AI Model Loading ---
-logger.info(f"Loading model: {HF_MODEL_NAME}")
+
+# --- Model Lazy Loading ---
+# Global variables to hold the model and processor. They are loaded on demand.
 model = None
 processor = None
-try:
-    # For Florence-2 models, we use AutoModelForCausalLM and AutoProcessor.
-    # trust_remote_code=True is required for Florence-2.
-    model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
-    processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    logger.info(f"Model loaded successfully on {device}.")
-except Exception as e:
-    logger.error(f"Failed to load model: {e}")
-    # Exit if model fails to load
-    exit()
-# --- End AI Model Loading ---
+def load_model_and_processor():
+    """Loads the model and processor into memory if they are not already loaded."""
+    global model, processor
+    if model is None or processor is None:
+        logger.info(f"Loading model: {HF_MODEL_NAME}")
+        try:
+            # For Florence-2 models, we use AutoModelForCausalLM and AutoProcessor.
+            # trust_remote_code=True is required for Florence-2.
+            model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+            processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+            model.to(device)
+            logger.info(f"Model loaded successfully on {device}.")
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            # Reset to None so we can try again later
+            model = None
+            processor = None
+            raise  # Re-raise the exception to be caught by the caller
+
+def unload_model_and_processor():
+    """Unloads the model and processor from memory to free up resources."""
+    global model, processor
+    if model is not None or processor is not None:
+        logger.info("Unloading model from memory.")
+        del model
+        del processor
+        model = None
+        processor = None
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("Model unloaded successfully.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends a welcome message when the /start command is issued."""
@@ -68,38 +88,43 @@ def generate_caption(image: Image.Image) -> str:
         logger.warning("This caption generation function is designed for Florence-2 models. The current model is not a Florence-2 model.")
         return "This bot is configured for Florence-2 models. The current model is not a Florence-2 model."
 
-    # Use the task prompt from environment variables
-    task_prompt = FLORENCE2_TASK_PROMPT
-    
-    # The processor for Florence-2 handles both text and image.
-    inputs = processor(text=task_prompt, images=image, return_tensors="pt")
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    try:
+        load_model_and_processor()
 
-    # Generate caption
-    max_new_tokens = 256  # Increased for more detailed captions
-    num_beams = 4
-    gen_kwargs = {"max_new_tokens": max_new_tokens, "num_beams": num_beams}
+        # Use the task prompt from environment variables
+        task_prompt = FLORENCE2_TASK_PROMPT
+        
+        # The processor for Florence-2 handles both text and image.
+        inputs = processor(text=task_prompt, images=image, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    generated_ids = model.generate(
-        input_ids=inputs["input_ids"],
-        pixel_values=inputs["pixel_values"],
-        **gen_kwargs
-    )
+        # Generate caption
+        max_new_tokens = 256  # Increased for more detailed captions
+        num_beams = 4
+        gen_kwargs = {"max_new_tokens": max_new_tokens, "num_beams": num_beams}
 
-    # The processor has a special post-processing step.
-    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-    
-    # The post_process_generation function cleans up the output.
-    parsed_answer = processor.post_process_generation(
-        generated_text, 
-        task=task_prompt, 
-        image_size=(image.width, image.height)
-    )
+        generated_ids = model.generate(
+            input_ids=inputs["input_ids"],
+            pixel_values=inputs["pixel_values"],
+            **gen_kwargs
+        )
 
-    caption = parsed_answer.get(task_prompt, "Could not generate caption.")
-    
-    logger.info(f"Generated caption: '{caption}'")
-    return caption
+        # The processor has a special post-processing step.
+        generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+        
+        # The post_process_generation function cleans up the output.
+        parsed_answer = processor.post_process_generation(
+            generated_text, 
+            task=task_prompt, 
+            image_size=(image.width, image.height)
+        )
+
+        caption = parsed_answer.get(task_prompt, "Could not generate caption.")
+        
+        logger.info(f"Generated caption: '{caption}'")
+        return caption
+    finally:
+        unload_model_and_processor()
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles incoming photos and generates a caption."""
