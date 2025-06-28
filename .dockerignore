@@ -1,0 +1,16 @@
+# Ignore git repository files and local environment configuration
+.git
+.gitignore
+.env
+
+# Ignore Docker files
+Dockerfile
+.dockerignore
+
+# Ignore Python virtual environment and cache files
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
