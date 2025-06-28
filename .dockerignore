@@ -6,6 +6,7 @@
 # Ignore Docker files
 Dockerfile
 .dockerignore
+docker-compose.yml
 
 # Ignore Python virtual environment and cache files
 .venv/
