@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "nlpconnect/vit-gpt2-image-captioning")
+HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "microsoft/Florence-2-base")  # Default to Florence-2 base model
 
 # --- AI Model Loading ---
 logger.info(f"Loading model: {HF_MODEL_NAME}")
