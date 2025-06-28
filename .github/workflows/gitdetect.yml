@@ -13,9 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
-          # Fetch all history for a deep scan
           fetch-depth: 0
       - name: Run Gitleaks scan
         uses: gitleaks/gitleaks-action@v2
