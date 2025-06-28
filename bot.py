@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "microsoft/Florence-2-base")  # Default to Florence-2 base model
-
+USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 # --- AI Model Loading ---
 logger.info(f"Loading model: {HF_MODEL_NAME}")
 model = None
