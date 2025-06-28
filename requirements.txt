@@ -3,3 +3,5 @@ python-dotenv
 torch
 transformers
 Pillow
+einops
+timm
