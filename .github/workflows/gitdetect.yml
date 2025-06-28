@@ -1,0 +1,24 @@
+name: Secret Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history for a deep scan
+          fetch-depth: 0
+      - name: Run Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Gitleaks will use this token to report findings as comments in pull requests
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
