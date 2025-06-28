@@ -106,7 +106,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         image = Image.open(image_stream).convert("RGB")
         caption = generate_caption(image)
-        await context.bot.send_message(chat_id=chat_id, text=f"Caption: {caption}")
+        await context.bot.send_message(chat_id=chat_id, text=f"{caption}")
     except Exception as e:
         logger.error(f"An error occurred while processing the image: {e}")
         await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process that image.")
