@@ -28,6 +28,17 @@ try:
     model = VisionEncoderDecoderModel.from_pretrained(HF_MODEL_NAME)
     feature_extractor = ViTImageProcessor.from_pretrained(HF_MODEL_NAME)
     tokenizer = AutoTokenizer.from_pretrained(HF_MODEL_NAME)
+
+    # Configure tokenizer for generation.
+    # For GPT-2, the pad token is not set by default, so we use the EOS token.
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
+    # Update model config to reflect tokenizer changes and fix beam search for GPT-2 decoder.
+    model.config.pad_token_id = tokenizer.pad_token_id
+    model.config.decoder.is_decoder = True
+    model.config.decoder.add_cross_attention = True
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     logger.info(f"Model loaded successfully on {device}.")
