@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from PIL import Image
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from transformers import VisionEncoderDecoderModel, ViTImageProcessor, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoProcessor
 
 # Setup logging
 logging.basicConfig(
@@ -24,20 +24,12 @@ HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "nlpconnect/vit-gpt2-image-captioning
 # --- AI Model Loading ---
 logger.info(f"Loading model: {HF_MODEL_NAME}")
 model = None
+processor = None
 try:
-    model = VisionEncoderDecoderModel.from_pretrained(HF_MODEL_NAME)
-    feature_extractor = ViTImageProcessor.from_pretrained(HF_MODEL_NAME)
-    tokenizer = AutoTokenizer.from_pretrained(HF_MODEL_NAME)
-
-    # Configure tokenizer for generation.
-    # For GPT-2, the pad token is not set by default, so we use the EOS token.
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    
-    # Update model config to reflect tokenizer changes and fix beam search for GPT-2 decoder.
-    model.config.pad_token_id = tokenizer.pad_token_id
-    model.config.decoder.is_decoder = True
-    model.config.decoder.add_cross_attention = True
+    # For Florence-2 models, we use AutoModelForCausalLM and AutoProcessor.
+    # trust_remote_code=True is required for Florence-2.
+    model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -56,30 +48,46 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def generate_caption(image: Image.Image) -> str:
-    """Generates a caption for the given image."""
+    """Generates a caption for the given image using Florence-2 model."""
     logger.info("Generating caption for image.")
-    
-    # The model `microsoft/florence2-base` requires a different processing pipeline.
-    # This implementation is for ViT-GPT2 style models.
-    if "florence" in HF_MODEL_NAME.lower():
-        # Using a different model family like Florence-2 would require a different
-        # implementation for processing and generation.
-        return "The selected model (`microsoft/florence2-base`) is not directly compatible with this bot's current implementation. Please use a ViT-GPT2-like model."
 
-    max_length = 16
+    # This function is now specifically for Florence-2 models.
+    if "florence" not in HF_MODEL_NAME.lower():
+        logger.warning("This caption generation function is designed for Florence-2 models. The current model is not a Florence-2 model.")
+        return "This bot is configured for Florence-2 models. The current model is not a Florence-2 model."
+
+    # User requested "middle caption setting", which corresponds to <DETAILED_CAPTION>
+    task_prompt = "<DETAILED_CAPTION>"
+    
+    # The processor for Florence-2 handles both text and image.
+    inputs = processor(text=task_prompt, images=image, return_tensors="pt")
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # Generate caption
+    max_new_tokens = 128  # Increased for more detailed captions
     num_beams = 4
-    gen_kwargs = {"max_length": max_length, "num_beams": num_beams}
+    gen_kwargs = {"max_new_tokens": max_new_tokens, "num_beams": num_beams}
 
-    pixel_values = feature_extractor(images=[image], return_tensors="pt").pixel_values
-    pixel_values = pixel_values.to(device)
+    generated_ids = model.generate(
+        input_ids=inputs["input_ids"],
+        pixel_values=inputs["pixel_values"],
+        **gen_kwargs
+    )
 
-    output_ids = model.generate(pixel_values, **gen_kwargs)
-
-    preds = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
-    preds = [pred.strip() for pred in preds]
+    # The processor has a special post-processing step.
+    generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
     
-    logger.info(f"Generated caption: '{preds[0]}'")
-    return preds[0]
+    # The post_process_generation function cleans up the output.
+    parsed_answer = processor.post_process_generation(
+        generated_text, 
+        task=task_prompt, 
+        image_size=(image.width, image.height)
+    )
+
+    caption = parsed_answer.get(task_prompt, "Could not generate caption.")
+    
+    logger.info(f"Generated caption: '{caption}'")
+    return caption
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles incoming photos and generates a caption."""
