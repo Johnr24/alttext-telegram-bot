@@ -21,6 +21,8 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "microsoft/Florence-2-base")  # Default to Florence-2 base model
 USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
+ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
+ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',')] if ALLOWED_USER_IDS_STR else []
 # --- AI Model Loading ---
 logger.info(f"Loading model: {HF_MODEL_NAME}")
 model = None
@@ -42,6 +44,15 @@ except Exception as e:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends a welcome message when the /start command is issued."""
+    user_id = update.effective_user.id
+    if ALLOWED_USER_IDS and user_id not in ALLOWED_USER_IDS:
+        logger.warning(f"Unauthorized access attempt by user_id: {user_id}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Sorry, you are not authorized to use this bot."
+        )
+        return
+
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Hello! I'm an image captioning bot. Send me an image, and I'll tell you what I see."
@@ -91,6 +102,15 @@ def generate_caption(image: Image.Image) -> str:
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles incoming photos and generates a caption."""
+    user_id = update.effective_user.id
+    if ALLOWED_USER_IDS and user_id not in ALLOWED_USER_IDS:
+        logger.warning(f"Unauthorized access attempt by user_id: {user_id}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Sorry, you are not authorized to use this bot."
+        )
+        return
+
     chat_id = update.effective_chat.id
     logger.info(f"Received image from chat_id: {chat_id}")
 
