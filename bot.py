@@ -23,6 +23,7 @@ HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "microsoft/Florence-2-base")  # Defau
 USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
 ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',')] if ALLOWED_USER_IDS_STR else []
+FLORENCE2_TASK_PROMPT = os.getenv("FLORENCE2_TASK_PROMPT", "<DETAILED_CAPTION>")
 # --- AI Model Loading ---
 logger.info(f"Loading model: {HF_MODEL_NAME}")
 model = None
@@ -67,8 +68,8 @@ def generate_caption(image: Image.Image) -> str:
         logger.warning("This caption generation function is designed for Florence-2 models. The current model is not a Florence-2 model.")
         return "This bot is configured for Florence-2 models. The current model is not a Florence-2 model."
 
-    # User requested "middle caption setting", which corresponds to <DETAILED_CAPTION>
-    task_prompt = "<DETAILED_CAPTION>"
+    # Use the task prompt from environment variables
+    task_prompt = FLORENCE2_TASK_PROMPT
     
     # The processor for Florence-2 handles both text and image.
     inputs = processor(text=task_prompt, images=image, return_tensors="pt")
