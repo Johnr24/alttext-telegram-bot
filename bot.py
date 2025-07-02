@@ -242,7 +242,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             inputs = processor([text], return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-                                    logger.info(f'Qwen model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else "N/A"}')
+                                    logger.info(f"""Qwen model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
             if device.type == 'mps':
                 logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
 
