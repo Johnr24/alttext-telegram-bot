@@ -146,6 +146,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="Hello! I'm an image captioning bot. Send me an image, and I'll tell you what I see."
     )
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sends a help message with all available commands."""
+    help_text = (
+        "Welcome to the Image Captioning Bot! Here's how to use me:\n\n"
+        "To generate a caption, simply send me an image. "
+        "You can also provide keywords with the image to steer the analysis.\n\n"
+        "Available commands:\n"
+        "/start - Get a welcome message.\n"
+        "/help - Show this help message.\n"
+        "/setsuffix <your message> - Set a custom suffix for your captions. "
+        "To remove it, use the command without a message."
+    )
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=help_text
+    )
+
 def generate_caption(image: Image.Image, task_prompt: str) -> str:
     """Generates a caption for the given image using Florence-2 model."""
     logger.info("Generating caption for image.")
@@ -240,6 +257,7 @@ def main():
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("setsuffix", set_suffix))
     application.add_handler(MessageHandler(filters.PHOTO, handle_image))
 
