@@ -170,51 +170,92 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=help_text
     )
 
-def generate_caption(image: Image.Image, model_prompt: str, base_task_prompt: str) -> str:
-    """Generates a caption for the given image using Florence-2 model."""
-    logger.info(f"Generating caption for image with prompt: '{model_prompt}'")
-
-    # This function is now specifically for Florence-2 models.
-    if "florence" not in HF_MODEL_NAME.lower():
-        logger.warning("This caption generation function is designed for Florence-2 models. The current model is not a Florence-2 model.")
-        return "This bot is configured for Florence-2 models. The current model is not a Florence-2 model."
+def generate_caption(image: Image.Image, user_prompt: str) -> str:
+    """Generates a caption for the given image using the selected model."""
+    logger.info(f"Generating caption for image with user prompt: '{user_prompt}'")
 
     try:
         load_model_and_processor()
 
-        # The processor for Florence-2 handles both text and image.
-        inputs = processor(text=model_prompt, images=image, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        if "florence" in HF_MODEL_NAME.lower():
+            # Florence-2 specific logic
+            base_task_prompt = FLORENCE2_TASK_PROMPT
+            model_prompt = f'{base_task_prompt} {user_prompt}' if user_prompt else base_task_prompt
 
-        # Generate caption
-        max_new_tokens = 256  # Increased for more detailed captions
-        num_beams = 4
-        gen_kwargs = {"max_new_tokens": max_new_tokens, "num_beams": num_beams}
+            inputs = processor(text=model_prompt, images=image, return_tensors="pt")
+            inputs = {k: v.to(device) for k, v in inputs.items()}
 
-        generated_ids = model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
-            **gen_kwargs
-        )
+            generated_ids = model.generate(
+                input_ids=inputs["input_ids"],
+                pixel_values=inputs["pixel_values"],
+                max_new_tokens=256,
+                num_beams=4
+            )
 
-        # The processor has a special post-processing step.
-        generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+            generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+            parsed_answer = processor.post_process_generation(
+                generated_text,
+                task=base_task_prompt,
+                image_size=(image.width, image.height)
+            )
+            caption = parsed_answer.get(base_task_prompt, "Could not generate caption.")
 
-        # The post_process_generation function cleans up the output.
-        # We use the base_task_prompt here to ensure correct parsing.
-        parsed_answer = processor.post_process_generation(
-            generated_text,
-            task=base_task_prompt,
-            image_size=(image.width, image.height)
-        )
+        elif "qwen" in HF_MODEL_NAME.lower():
+            # Qwen-VL specific logic
+            messages = [
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "image_url": f"data:image/jpeg;base64,{image_to_base64(image)}"
+                        },
+                        {
+                            "type": "text",
+                            "text": user_prompt if user_prompt else "Describe the image."
+                        }
+                    ]
+                }
+            ]
+            
+            text = processor.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            
+            inputs = processor([text], return_tensors="pt")
+            inputs = {k: v.to(device) for k, v in inputs.items()}
 
-        # The key for the answer is the base_task_prompt.
-        caption = parsed_answer.get(base_task_prompt, "Could not generate caption.")
+            generated_ids = model.generate(**inputs, max_new_tokens=256, num_beams=4)
+            response = processor.decode(generated_ids[0], skip_special_tokens=True)
+            
+            # Extract the assistant's response from the full text
+            assistant_response_start = response.find("assistant\n")
+            if assistant_response_start != -1:
+                caption = response[assistant_response_start + len("assistant\n"):].strip()
+            else:
+                caption = "Could not parse assistant response."
+
+        else:
+            return f"Unsupported model type: {HF_MODEL_NAME}"
 
         logger.info(f"Generated caption: '{caption}'")
         return caption
     finally:
         unload_model_and_processor()
+
+import base64
+
+def image_to_base64(image: Image.Image) -> str:
+    """Converts a PIL image to a base64 encoded string."""
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles incoming photos and generates a caption."""
@@ -230,19 +271,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     logger.info(f"Received image from chat_id: {chat_id}")
 
-    # The base task prompt is always what we want the model to perform.
-    base_task_prompt = FLORENCE2_TASK_PROMPT
-    # The user's caption is used to guide the model.
-    user_caption = update.message.caption
-
-    if user_caption:
-        # Combine the base task with the user's caption for a guided prompt.
-        model_prompt = f'{base_task_prompt} {user_caption}'
-        logger.info(f"Using guided prompt: '{model_prompt}'")
-    else:
-        # Use the default prompt if no caption is provided.
-        model_prompt = base_task_prompt
-        logger.info(f"Using default prompt: '{model_prompt}'")
+    user_prompt = update.message.caption
 
     await context.bot.send_message(chat_id=chat_id, text="Processing your image...")
 
@@ -255,7 +284,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         image = Image.open(image_stream).convert("RGB")
-        caption = generate_caption(image, model_prompt, base_task_prompt)
+        caption = generate_caption(image, user_prompt)
 
         user_data = load_user_data()
         user_suffix = user_data.get('users', {}).get(user_id, {}).get('suffix', DEFAULT_POLITE_NOTICE)
