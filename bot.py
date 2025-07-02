@@ -223,23 +223,32 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     logger.info(f"Received image from chat_id: {chat_id}")
 
-    # Use the user's message as the task_prompt, or the default if not provided.
-    task_prompt = update.message.caption if update.message.caption else FLORENCE2_TASK_PROMPT
-    logger.info(f"Using task prompt: '{task_prompt}'")
+    # The base task prompt is always what we want the model to perform.
+    base_task_prompt = FLORENCE2_TASK_PROMPT
+    # The user's caption is used to guide the model.
+    user_caption = update.message.caption
 
+    if user_caption:
+        # Combine the base task with the user's caption for a guided prompt.
+        model_prompt = f'{base_task_prompt} {user_caption}'
+        logger.info(f"Using guided prompt: '{model_prompt}'")
+    else:
+        # Use the default prompt if no caption is provided.
+        model_prompt = base_task_prompt
+        logger.info(f"Using default prompt: '{model_prompt}'")
 
     await context.bot.send_message(chat_id=chat_id, text="Processing your image...")
 
     # Get the largest photo sent
     photo_file = await update.message.photo[-1].get_file()
-    
+
     # Download the photo into a BytesIO object
     file_bytes = await photo_file.download_as_bytearray()
     image_stream = BytesIO(file_bytes)
-    
+
     try:
         image = Image.open(image_stream).convert("RGB")
-        caption = generate_caption(image, task_prompt)
+        caption = generate_caption(image, model_prompt, base_task_prompt)
 
         user_data = load_user_data()
         user_suffix = user_data.get('users', {}).get(user_id, {}).get('suffix', DEFAULT_POLITE_NOTICE)
