@@ -10,6 +10,7 @@ docker-compose.yml
 
 # Ignore Python virtual environment and cache files
 .venv/
+.venv
 __pycache__/
 *.pyc
 *.pyo
