@@ -61,23 +61,21 @@ def load_model_and_processor():
     """Loads the model and processor/tokenizer into memory if they are not already loaded."""
     global model, processor
     if model is None or processor is None:
-        logger.info(f"Loading model: {HF_MODEL_NAME}")
+        logger.info(f"Attempting to load model: {HF_MODEL_NAME} on device: {device}")
         try:
             if "florence" in HF_MODEL_NAME.lower():
-                # For Florence-2 models, we use AutoModelForCausalLM and AutoProcessor.
                 model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             elif "qwen" in HF_MODEL_NAME.lower():
-                # For Qwen-VL models, we use AutoModelForVision2Seq and AutoTokenizer.
                 model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoTokenizer.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}")
 
             model.to(device)
-            logger.info(f"Model loaded successfully on {device}.")
+            logger.info(f"Model {HF_MODEL_NAME} loaded successfully on {device}.")
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
+            logger.error(f"Failed to load model {HF_MODEL_NAME}: {e}")
             model = None
             processor = None
             raise
@@ -86,7 +84,7 @@ def unload_model_and_processor():
     """Unloads the model and processor from memory to free up resources."""
     global model, processor
     if model is not None or processor is not None:
-        logger.info("Unloading model from memory.")
+        logger.info("Attempting to unload model from memory.")
         del model
         del processor
         model = None
@@ -186,12 +184,19 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             inputs = processor(text=model_prompt, images=image, return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
+            logger.info(f"Florence-2 model inputs prepared. Input IDs shape: {inputs["input_ids"].shape}, Pixel values shape: {inputs["pixel_values"].shape}")
+            if device.type == 'mps':
+                logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
+            
             generated_ids = model.generate(
                 input_ids=inputs["input_ids"],
                 pixel_values=inputs["pixel_values"],
                 max_new_tokens=256,
                 num_beams=4
             )
+            logger.info("Florence-2 model generation complete.")
+            if device.type == 'mps':
+                logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
 
             generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
             parsed_answer = processor.post_process_generation(
@@ -232,8 +237,15 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             inputs = processor([text], return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            generated_ids = model.generate(**inputs, max_new_tokens=256)
+            logger.info(f"Qwen model inputs prepared. Input IDs shape: {inputs["input_ids"].shape}, Pixel values shape: {inputs["pixel_values"].shape if "pixel_values" in inputs else "N/A"}")
+            if device.type == 'mps':
+                logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
 
+            generated_ids = model.generate(**inputs, max_new_tokens=256)
+            logger.info("Qwen model generation complete.")
+            if device.type == 'mps':
+                logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
+            
             response = processor.decode(generated_ids[0], skip_special_tokens=True)
             
             # Extract the assistant's response from the full text
