@@ -67,7 +67,12 @@ def load_model_and_processor():
                 model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             elif "qwen" in HF_MODEL_NAME.lower():
-                model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                # For Qwen-VL models, we use AutoModelForVision2Seq and AutoTokenizer.
+                # Load in float16 for MPS to reduce memory footprint.
+                if device.type == 'mps':
+                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16)
+                else:
+                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoTokenizer.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}")
