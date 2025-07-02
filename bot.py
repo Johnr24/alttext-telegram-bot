@@ -201,46 +201,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             )
             caption = parsed_answer.get(base_task_prompt, "Could not generate caption.")
 
-        elif "qwen" in HF_MODEL_NAME.lower():
-            # Qwen-VL specific logic
-            messages = [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "image_url": f"data:image/jpeg;base64,{image_to_base64(image)}"
-                        },
-                        {
-                            "type": "text",
-                            "text": user_prompt if user_prompt else "Describe the image."
-                        }
-                    ]
-                }
-            ]
-            
-            text = processor.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            
-            inputs = processor([text], return_tensors="pt")
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-
-            generated_ids = model.generate(**inputs, max_new_tokens=256, num_beams=4)
-            response = processor.decode(generated_ids[0], skip_special_tokens=True)
-            
-            # Extract the assistant's response from the full text
-            assistant_response_start = response.find("assistant\n")
-            if assistant_response_start != -1:
-                caption = response[assistant_response_start + len("assistant\n"):].strip()
-            else:
-                caption = "Could not parse assistant response."
+        elif "qwen" in HF_MODEL_NAME.lower():            # Qwen-VL specific logic            messages = [                {                    "role": "system",                    "content": SYSTEM_PROMPT                },                {                    "role": "user",                    "content": [                        {                            "type": "image",                            "image_url": f"data:image/jpeg;base64,{image_to_base64(image)}"                        },                        {                            "type": "text",                            "text": user_prompt if user_prompt else "Describe the image."                        }                    ]                }            ]                        text = processor.apply_chat_template(                messages,                tokenize=False,                add_generation_prompt=True            )                        inputs = processor([text], return_tensors="pt")            inputs = {k: v.to(device) for k, v in inputs.items()}            # Use autocast for mixed-precision inference            with torch.cuda.amp.autocast():                generated_ids = model.generate(**inputs, max_new_tokens=256)                        response = processor.decode(generated_ids[0], skip_special_tokens=True)                        # Extract the assistant's response from the full text            assistant_response_start = response.find("assistant\n")            if assistant_response_start != -1:                caption = response[assistant_response_start + len("assistant\n"):].strip()            else:                caption = "Could not parse assistant response."
 
         else:
             return f"Unsupported model type: {HF_MODEL_NAME}"
