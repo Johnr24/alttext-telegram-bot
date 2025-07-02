@@ -54,7 +54,7 @@ def save_user_data(data):
 # Global variables to hold the model and processor. They are loaded on demand.
 model = None
 processor = None
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 
 def load_model_and_processor():
@@ -91,8 +91,8 @@ def unload_model_and_processor():
         del processor
         model = None
         processor = None
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
         logger.info("Model unloaded successfully.")
 
 
@@ -232,12 +232,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             inputs = processor([text], return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            if device.type == 'cuda':
-                # Use autocast for mixed-precision inference on CUDA devices
-                with torch.cuda.amp.autocast():
-                    generated_ids = model.generate(**inputs, max_new_tokens=256)
-            else:
-                generated_ids = model.generate(**inputs, max_new_tokens=256)
+            generated_ids = model.generate(**inputs, max_new_tokens=256)
 
             response = processor.decode(generated_ids[0], skip_special_tokens=True)
             
