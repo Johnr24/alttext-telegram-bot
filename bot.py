@@ -204,6 +204,11 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     logger.info(f"Received image from chat_id: {chat_id}")
 
+    # Use the user's message as the task_prompt, or the default if not provided.
+    task_prompt = update.message.caption if update.message.caption else FLORENCE2_TASK_PROMPT
+    logger.info(f"Using task prompt: '{task_prompt}'")
+
+
     await context.bot.send_message(chat_id=chat_id, text="Processing your image...")
 
     # Get the largest photo sent
@@ -215,7 +220,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         image = Image.open(image_stream).convert("RGB")
-        caption = generate_caption(image)
+        caption = generate_caption(image, task_prompt)
 
         user_data = load_user_data()
         user_suffix = user_data.get('users', {}).get(user_id, {}).get('suffix', DEFAULT_POLITE_NOTICE)
