@@ -232,10 +232,13 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             inputs = processor([text], return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            # Use autocast for mixed-precision inference
-            with torch.cuda.amp.autocast():
+            if device.type == 'cuda':
+                # Use autocast for mixed-precision inference on CUDA devices
+                with torch.cuda.amp.autocast():
+                    generated_ids = model.generate(**inputs, max_new_tokens=256)
+            else:
                 generated_ids = model.generate(**inputs, max_new_tokens=256)
-            
+
             response = processor.decode(generated_ids[0], skip_special_tokens=True)
             
             # Extract the assistant's response from the full text
