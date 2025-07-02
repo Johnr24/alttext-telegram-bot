@@ -163,9 +163,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=help_text
     )
 
-def generate_caption(image: Image.Image, task_prompt: str) -> str:
+def generate_caption(image: Image.Image, model_prompt: str, base_task_prompt: str) -> str:
     """Generates a caption for the given image using Florence-2 model."""
-    logger.info("Generating caption for image.")
+    logger.info(f"Generating caption for image with prompt: '{model_prompt}'")
 
     # This function is now specifically for Florence-2 models.
     if "florence" not in HF_MODEL_NAME.lower():
@@ -176,7 +176,7 @@ def generate_caption(image: Image.Image, task_prompt: str) -> str:
         load_model_and_processor()
 
         # The processor for Florence-2 handles both text and image.
-        inputs = processor(text=task_prompt, images=image, return_tensors="pt")
+        inputs = processor(text=model_prompt, images=image, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
         # Generate caption
@@ -192,16 +192,18 @@ def generate_caption(image: Image.Image, task_prompt: str) -> str:
 
         # The processor has a special post-processing step.
         generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-        
+
         # The post_process_generation function cleans up the output.
+        # We use the base_task_prompt here to ensure correct parsing.
         parsed_answer = processor.post_process_generation(
-            generated_text, 
-            task=task_prompt, 
+            generated_text,
+            task=base_task_prompt,
             image_size=(image.width, image.height)
         )
 
-        caption = parsed_answer.get(task_prompt, "Could not generate caption.")
-        
+        # The key for the answer is the base_task_prompt.
+        caption = parsed_answer.get(base_task_prompt, "Could not generate caption.")
+
         logger.info(f"Generated caption: '{caption}'")
         return caption
     finally:
