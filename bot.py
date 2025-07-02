@@ -150,8 +150,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends a help message with all available commands."""
     help_text = (
         "Welcome to the Image Captioning Bot! Here's how to use me:\n\n"
-        "To generate a caption, simply send me an image. "
-        "You can also provide keywords with the image to steer the analysis.\n\n"
+        "To generate a caption, simply send an image.\n"
+        "To steer the analysis with keywords, include them as a caption when you send the image. For example, sending an image with the caption 'A black dog playing fetch' will guide the model.\n\n"
         "Available commands:\n"
         "/start - Get a welcome message.\n"
         "/help - Show this help message.\n"
