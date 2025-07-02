@@ -57,23 +57,29 @@ processor = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def load_model_and_processor():
-    """Loads the model and processor into memory if they are not already loaded."""
+    """Loads the model and processor/tokenizer into memory if they are not already loaded."""
     global model, processor
     if model is None or processor is None:
         logger.info(f"Loading model: {HF_MODEL_NAME}")
         try:
-            # For Florence-2 models, we use AutoModelForCausalLM and AutoProcessor.
-            # trust_remote_code=True is required for Florence-2.
-            model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
-            processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+            if "florence" in HF_MODEL_NAME.lower():
+                # For Florence-2 models, we use AutoModelForCausalLM and AutoProcessor.
+                model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+            elif "qwen" in HF_MODEL_NAME.lower():
+                # For Qwen-VL models, we use AutoModelForCausalLM and AutoTokenizer.
+                model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                processor = AutoTokenizer.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+            else:
+                raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}")
+
             model.to(device)
             logger.info(f"Model loaded successfully on {device}.")
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
-            # Reset to None so we can try again later
             model = None
             processor = None
-            raise  # Re-raise the exception to be caught by the caller
+            raise
 
 def unload_model_and_processor():
     """Unloads the model and processor from memory to free up resources."""
