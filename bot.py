@@ -146,7 +146,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="Hello! I'm an image captioning bot. Send me an image, and I'll tell you what I see."
     )
 
-def generate_caption(image: Image.Image) -> str:
+def generate_caption(image: Image.Image, task_prompt: str) -> str:
     """Generates a caption for the given image using Florence-2 model."""
     logger.info("Generating caption for image.")
 
@@ -158,9 +158,6 @@ def generate_caption(image: Image.Image) -> str:
     try:
         load_model_and_processor()
 
-        # Use the task prompt from environment variables
-        task_prompt = FLORENCE2_TASK_PROMPT
-        
         # The processor for Florence-2 handles both text and image.
         inputs = processor(text=task_prompt, images=image, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
