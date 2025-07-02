@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from PIL import Image
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, AutoModelForVision2Seq
 
 # Setup logging
 logging.basicConfig(
@@ -56,6 +56,7 @@ model = None
 processor = None
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 def load_model_and_processor():
     """Loads the model and processor/tokenizer into memory if they are not already loaded."""
     global model, processor
@@ -67,8 +68,8 @@ def load_model_and_processor():
                 model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             elif "qwen" in HF_MODEL_NAME.lower():
-                # For Qwen-VL models, we use AutoModelForCausalLM and AutoTokenizer.
-                model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                # For Qwen-VL models, we use AutoModelForVision2Seq and AutoTokenizer.
+                model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoTokenizer.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}")
