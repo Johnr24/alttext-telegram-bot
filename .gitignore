@@ -168,3 +168,4 @@ marimo/_lsp/
 __marimo__/
 .aider*
 user_data.yaml
+hf_cache/
