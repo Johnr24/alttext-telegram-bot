@@ -1,9 +1,5 @@
 python-telegram-bot[ext]
 python-dotenv
-torch
-transformers
-accelerate
 Pillow
-einops
-timm
 pyYAML
+ollama
