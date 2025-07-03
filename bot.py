@@ -67,10 +67,10 @@ def load_model_and_processor():
                 # For Qwen-VL and Gemma models, we use AutoModelForVision2Seq and AutoProcessor.
                 # Load in float16 for MPS to reduce memory footprint.
                 if device.type == 'mps':
-                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16, token=HF_TOKEN)
+                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16, token=HF_TOKEN, local_files_only=True)
                 else:
-                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN)
-                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN)
+                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
+                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen and Gemma style models.")
 
