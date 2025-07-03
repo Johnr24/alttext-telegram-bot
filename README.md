@@ -76,7 +76,7 @@ This is the recommended setup for using gated models with Docker.
 3.  **Download the model:**
     Replace the `repo-id` with your desired model.
     ```bash
-    huggingface-cli download --repo-id google/gemma-3n-E4B-it --cache-dir ./hf_cache
+    huggingface-cli download google/gemma-3n-E4B-it --cache-dir ./hf_cache
     ```
 
 Now, when you run `docker-compose up`, the bot will find the model files in the mounted volume and won't need to download them.
