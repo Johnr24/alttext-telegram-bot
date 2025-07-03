@@ -1,11 +1,7 @@
-version: '3.8'
-
 services:
   telegram-bot:
     build: .
     container_name: telegram-caption-bot
-    env_file:
-      - .env
     environment:
       - HF_HOME=/huggingface
     volumes:
