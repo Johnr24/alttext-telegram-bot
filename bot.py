@@ -237,7 +237,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
                 add_generation_prompt=True
             )
 
-            inputs = processor(text=prompt, images=image, return_tensors="pt")
+            inputs = processor(text=[prompt], images=[image], return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
             logger.info(f"""Qwen model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
@@ -249,14 +249,9 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             if device.type == 'mps':
                 logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
             
-            response = processor.decode(generated_ids[0], skip_special_tokens=True)
-            
-            # Extract the assistant's response from the full text
-            assistant_response_start = response.find("assistant\n")
-            if assistant_response_start != -1:
-                caption = response[assistant_response_start + len("assistant\n"):].strip()
-            else:
-                caption = "Could not parse assistant response."
+            input_token_len = inputs["input_ids"].shape[1]
+            generated_text = processor.batch_decode(generated_ids[:, input_token_len:], skip_special_tokens=True)[0]
+            caption = generated_text.strip()
 
         else:
             return f"Unsupported model type: {HF_MODEL_NAME}"
