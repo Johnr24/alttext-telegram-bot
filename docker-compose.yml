@@ -6,9 +6,8 @@ services:
     container_name: telegram-caption-bot
     env_file:
       - .env
+    environment:
+      - HF_HOME=/huggingface
     volumes:
-      - ./hf_cache:/root/.cache/huggingface/hub
+      - ./hf_cache:/huggingface/hub
     restart: unless-stopped
-
-volumes:
-  hf_cache:
