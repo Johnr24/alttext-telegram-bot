@@ -55,6 +55,32 @@ This bot uses a Hugging Face vision model to generate captions for images sent t
 -   `ALLOWED_USER_IDS`: A comma-separated list of Telegram user IDs who are allowed to use the bot. If empty, all users are allowed.
 -   `SYSTEM_PROMPT`: The system prompt for the model.
 
+### Pre-downloading Gated Models for Docker
+
+To run the bot inside Docker without it needing to download models or authenticate with Hugging Face, you must pre-download the model to a local cache directory that gets mounted into the container.
+
+This is the recommended setup for using gated models with Docker.
+
+1.  **Log in to Hugging Face CLI:**
+    ```bash
+    huggingface-cli login
+    ```
+    (This requires `huggingface-hub` which is in `requirements.txt`)
+
+2.  **Create the cache directory:**
+    This directory is mapped as a volume in `docker-compose.yml`.
+    ```bash
+    mkdir -p ./hf_cache
+    ```
+
+3.  **Download the model:**
+    Replace the `repo-id` with your desired model.
+    ```bash
+    huggingface-cli download --repo-id google/gemma-3n-E4B-it --cache-dir ./hf_cache
+    ```
+
+Now, when you run `docker-compose up`, the bot will find the model files in the mounted volume and won't need to download them.
+
 ### Running the Bot
 
 Once configured, you can run the bot with:
