@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN")
 HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "Qwen/Qwen2.5-VL-3B-Instruct")  # Default to Qwen2.5 VL
 USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
@@ -64,16 +65,16 @@ def load_model_and_processor():
         logger.info(f"Attempting to load model: {HF_MODEL_NAME} on device: {device}")
         try:
             if "florence" in HF_MODEL_NAME.lower():
-                model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
-                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN)
+                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN)
             elif "qwen" in HF_MODEL_NAME.lower():
                 # For Qwen-VL models, we use AutoModelForVision2Seq and AutoProcessor.
                 # Load in float16 for MPS to reduce memory footprint.
                 if device.type == 'mps':
-                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16)
+                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16, token=HF_TOKEN)
                 else:
-                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
-                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN)
+                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN)
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}")
 
