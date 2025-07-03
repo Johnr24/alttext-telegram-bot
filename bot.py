@@ -2,6 +2,7 @@ import logging
 import os
 from io import BytesIO
 import yaml
+import gc
 
 import torch
 from dotenv import load_dotenv
@@ -112,6 +113,8 @@ def unload_model_and_processor():
         del processor
         model = None
         processor = None
+        logger.info("Triggering garbage collection.")
+        gc.collect()
         if torch.backends.mps.is_available():
             torch.mps.empty_cache()
         logger.info("Model unloaded successfully.")
