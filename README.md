@@ -47,13 +47,13 @@ This bot uses a Hugging Face vision model to generate captions for images sent t
 ### Configuration (`.env` file)
 
 -   `TELEGRAM_BOT_TOKEN`: Your token from BotFather.
--   `HF_MODEL_NAME`: The Hugging Face model to use. Defaults to a gated Gemma model.
--   `HF_TOKEN`: Your Hugging Face User Access Token. This is **required** for gated models like Gemma.
+-   `HF_MODEL_NAME`: The Hugging Face model to use. Defaults to a gated PaliGemma model.
+-   `HF_TOKEN`: Your Hugging Face User Access Token. This is **required** for gated models like PaliGemma.
     -   You can create a token in your Hugging Face account settings: [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
-    -   You also need to request access to the gated model on its Hugging Face page. For `google/gemma-3n-E4B-it`, you would visit its page and accept the terms.
+    -   You also need to request access to the gated model on its Hugging Face page. For `google/paligemma-3b-mix-224`, you would visit its page and accept the terms.
 -   `USER`: Your name, used in the default polite notice.
 -   `ALLOWED_USER_IDS`: A comma-separated list of Telegram user IDs who are allowed to use the bot. If empty, all users are allowed.
--   `SYSTEM_PROMPT`: The system prompt for the model.
+-   `SYSTEM_PROMPT`: The system prompt for the model (used by Qwen, not PaliGemma).
 
 ### Pre-downloading Gated Models for Docker
 
@@ -76,7 +76,7 @@ This is the recommended setup for using gated models with Docker.
 3.  **Download the model:**
     Replace the `repo-id` with your desired model.
     ```bash
-    huggingface-cli download google/gemma-3n-E4B-it --cache-dir ./hf_cache
+    huggingface-cli download google/paligemma-3b-mix-224 --cache-dir ./hf_cache
     ```
 
 Now, when you run `docker-compose up`, the bot will find the model files in the mounted volume and won't need to download them.
@@ -98,4 +98,4 @@ python bot.py
 
 ## Supported Models
 
-The bot is configured to work with vision-language models like Qwen and Gemma. You can change the model by updating `HF_MODEL_NAME` in your `.env` file. Note that different models may have different performance and resource requirements.
+The bot is configured to work with vision-language models like Qwen and PaliGemma. You can change the model by updating `HF_MODEL_NAME` in your `.env` file. Note that different models may have different performance and resource requirements.

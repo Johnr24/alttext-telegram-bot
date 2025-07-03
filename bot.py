@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 HF_TOKEN = os.getenv("HF_TOKEN")
-HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "google/gemma-3n-E4B-it")  # Default to Gemma
+HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "google/paligemma-3b-mix-224")  # Default to PaliGemma
 USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
 ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',')] if ALLOWED_USER_IDS_STR else []
@@ -63,8 +63,8 @@ def load_model_and_processor():
     if model is None or processor is None:
         logger.info(f"Attempting to load model: {HF_MODEL_NAME} on device: {device}")
         try:
-            if "qwen" in HF_MODEL_NAME.lower() or "gemma" in HF_MODEL_NAME.lower():
-                # For Qwen-VL and Gemma models, we use AutoModelForVision2Seq and AutoProcessor.
+            if "qwen" in HF_MODEL_NAME.lower() or "paligemma" in HF_MODEL_NAME.lower():
+                # For Qwen-VL and PaliGemma models, we use AutoModelForVision2Seq and AutoProcessor.
                 # Load in float16 for MPS to reduce memory footprint.
                 if device.type == 'mps':
                     model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16, token=HF_TOKEN, local_files_only=True)
@@ -72,7 +72,7 @@ def load_model_and_processor():
                     model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
                 processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
             else:
-                raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen and Gemma style models.")
+                raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen and PaliGemma style models.")
 
             model.to(device)
             logger.info(f"Model {HF_MODEL_NAME} loaded successfully on {device}.")
@@ -178,8 +178,29 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
     try:
         load_model_and_processor()
 
-        if "qwen" in HF_MODEL_NAME.lower() or "gemma" in HF_MODEL_NAME.lower():
-            # Qwen-VL/Gemma specific logic
+        if "paligemma" in HF_MODEL_NAME.lower():
+            # PaliGemma specific logic
+            text_prompt = "Describe the image."
+            if user_prompt:
+                text_prompt = user_prompt  # Use the user's prompt directly
+
+            inputs = processor(text=text_prompt, images=image, return_tensors="pt").to(device)
+
+            logger.info(f"""Model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
+            if device.type == 'mps':
+                logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
+
+            generated_ids = model.generate(**inputs, max_new_tokens=256)
+            logger.info("Model generation complete.")
+            if device.type == 'mps':
+                logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
+
+            generated_text = processor.decode(generated_ids[0], skip_special_tokens=True)
+            # PaliGemma's output includes the prompt, so we strip it.
+            caption = generated_text[len(text_prompt):].lstrip()
+
+        elif "qwen" in HF_MODEL_NAME.lower():
+            # Qwen-VL specific logic
             text_prompt = "Describe the image."
             if user_prompt:
                 text_prompt = f"Please describe this image, paying special attention to: {user_prompt}"
@@ -224,7 +245,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
             caption = generated_text.strip()
 
         else:
-            return f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen and Gemma style models."
+            return f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen and PaliGemma style models."
 
         logger.info(f"Generated caption: '{caption}'")
         return caption
@@ -284,8 +305,8 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN not found. Please create a .env file and add it.")
         return
 
-    if ("qwen" in HF_MODEL_NAME.lower() or "gemma" in HF_MODEL_NAME.lower()) and not SYSTEM_PROMPT:
-        logger.error("SYSTEM_PROMPT not found in .env file. It is required for Qwen/Gemma models.")
+    if "qwen" in HF_MODEL_NAME.lower() and not SYSTEM_PROMPT:
+        logger.error("SYSTEM_PROMPT not found in .env file. It is required for Qwen models.")
         return
 
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
