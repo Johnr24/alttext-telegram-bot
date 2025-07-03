@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "Qwen/Qwen2.5-7B-VL-Chat")  # Default to Qwen2.5 VL
+HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "Qwen/Qwen2.5-1.8B-VL-Chat")  # Default to Qwen2.5 VL
 USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
 ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',')] if ALLOWED_USER_IDS_STR else []
