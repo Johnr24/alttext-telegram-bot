@@ -163,7 +163,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "Welcome to the Image Captioning Bot! Here's how to use me:\n\n"
         "To generate a caption, simply send an image.\n"
-        "To steer the analysis with keywords, include them as a caption when you send the image. For example, sending an image with the caption 'A black dog playing fetch' will guide the model.\n\n"
+        "To guide the caption generation, provide a text prompt in the image's caption. The model will use your prompt to focus its description. For example, sending an image with the caption 'A black dog playing fetch' will guide the model.\n\n"
         "Available commands:\n"
         "/start - Get a welcome message.\n"
         "/help - Show this help message.\n"
@@ -214,6 +214,10 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
 
         elif "qwen" in HF_MODEL_NAME.lower():
             # Qwen-VL specific logic
+            text_prompt = "Describe the image."
+            if user_prompt:
+                text_prompt = f"Please describe this image, paying special attention to: {user_prompt}"
+
             messages = [
                 {
                     "role": "system",
@@ -225,7 +229,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
                         {"type": "image"},
                         {
                             "type": "text",
-                            "text": user_prompt if user_prompt else "Describe the image."
+                            "text": text_prompt
                         }
                     ]
                 }
