@@ -97,6 +97,8 @@ def load_model_and_processor():
             logger.info(f"Model {HF_MODEL_NAME} loaded successfully on {device}.")
         except Exception as e:
             logger.error(f"Failed to load model {HF_MODEL_NAME}: {e}")
+            model_cache_dir = f"~/.cache/huggingface/hub/models--{HF_MODEL_NAME.replace('/', '--')}"
+            logger.error(f"This may be due to an incomplete model download. Try removing the cache directory '{model_cache_dir}' and restarting.")
             model = None
             processor = None
             raise
