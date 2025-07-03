@@ -67,13 +67,13 @@ def load_model_and_processor():
                 model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
                 processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             elif "qwen" in HF_MODEL_NAME.lower():
-                # For Qwen-VL models, we use AutoModelForVision2Seq and AutoTokenizer.
+                # For Qwen-VL models, we use AutoModelForVision2Seq and AutoProcessor.
                 # Load in float16 for MPS to reduce memory footprint.
                 if device.type == 'mps':
                     model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16)
                 else:
                     model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
-                processor = AutoTokenizer.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
+                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True)
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}")
 
@@ -221,10 +221,7 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image",
-                            "image_url": f"data:image/jpeg;base64,{image_to_base64(image)}"
-                        },
+                        {"type": "image"},
                         {
                             "type": "text",
                             "text": user_prompt if user_prompt else "Describe the image."
@@ -232,14 +229,14 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
                     ]
                 }
             ]
-            
-            text = processor.apply_chat_template(
+
+            prompt = processor.tokenizer.apply_chat_template(
                 messages,
                 tokenize=False,
                 add_generation_prompt=True
             )
-            
-            inputs = processor([text], return_tensors="pt")
+
+            inputs = processor(text=prompt, images=image, return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
             logger.info(f"""Qwen model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
