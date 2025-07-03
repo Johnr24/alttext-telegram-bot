@@ -55,29 +55,41 @@ def save_user_data(data):
 model = None
 processor = None
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+TORCH_DTYPE = torch.bfloat16 if device.type == 'mps' else torch.float32 # Use bfloat16 for MPS, float32 for CPU
 
 
 def load_model_and_processor():
     """Loads the model and processor/tokenizer into memory if they are not already loaded."""
     global model, processor
     if model is None or processor is None:
-        logger.info(f"Attempting to load model: {HF_MODEL_NAME} on device: {device}")
+        logger.info(f"Attempting to load model: {HF_MODEL_NAME} on device: {device} with dtype: {TORCH_DTYPE}")
         try:
             if "gemma-3n" in HF_MODEL_NAME.lower():
                 # For Gemma-3n models, we use AutoModelForCausalLM and AutoProcessor.
-                if device.type == 'mps':
-                    model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16, token=HF_TOKEN, local_files_only=True)
-                else:
-                    model = AutoModelForCausalLM.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
-                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
+                model = AutoModelForCausalLM.from_pretrained(
+                    HF_MODEL_NAME,
+                    trust_remote_code=True,
+                    torch_dtype=TORCH_DTYPE,
+                    token=HF_TOKEN
+                )
+                processor = AutoProcessor.from_pretrained(
+                    HF_MODEL_NAME,
+                    trust_remote_code=True,
+                    token=HF_TOKEN
+                )
             elif "qwen" in HF_MODEL_NAME.lower() or "paligemma" in HF_MODEL_NAME.lower():
                 # For Qwen-VL and PaliGemma models, we use AutoModelForVision2Seq and AutoProcessor.
-                # Load in float16 for MPS to reduce memory footprint.
-                if device.type == 'mps':
-                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, torch_dtype=torch.float16, token=HF_TOKEN, local_files_only=True)
-                else:
-                    model = AutoModelForVision2Seq.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
-                processor = AutoProcessor.from_pretrained(HF_MODEL_NAME, trust_remote_code=True, token=HF_TOKEN, local_files_only=True)
+                model = AutoModelForVision2Seq.from_pretrained(
+                    HF_MODEL_NAME,
+                    trust_remote_code=True,
+                    torch_dtype=TORCH_DTYPE,
+                    token=HF_TOKEN
+                )
+                processor = AutoProcessor.from_pretrained(
+                    HF_MODEL_NAME,
+                    trust_remote_code=True,
+                    token=HF_TOKEN
+                )
             else:
                 raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen, PaliGemma, and Gemma-3n style models.")
 
