@@ -204,8 +204,9 @@ def generate_ocr_text(image: Image.Image) -> str:
         prompt_text = "Transcribe the text from this image."
 
         # Construct options for the Ollama client for OCR
-        options = {'num_predict': 2048}
-        logger.info(f"Setting num_predict (max tokens) for OCR to {options['num_predict']}")
+        # Set num_predict to -1 for unlimited token generation to prevent truncation.
+        options = {'num_predict': -1}
+        logger.info(f"Setting num_predict (max tokens) for OCR to {options['num_predict']} (unlimited)")
 
         response = client.chat(
             model=OLLAMA_MODEL,
