@@ -34,31 +34,15 @@ The bot is a simple Python application that listens for messages on Telegram. Wh
     git clone <repo_url>
     cd <repo_directory>
     ```
-
-2.  **Create a virtual environment and activate it:**
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Configure environment variables:**
-    -   Copy the example environment file:
-        ```bash
-        cp env.example .env
-        ```
-    -   Edit the `.env` file with your details.
-
+2. **Build with Docker Compose:**
+3. b
 ### Configuration (`.env` file)
 
 -   `TELEGRAM_BOT_TOKEN`: Your token from BotFather.
 -   `OLLAMA_HOST`: The full URL of your Ollama instance's API. Defaults to `http://localhost:11434`.
 -   `OLLAMA_MODEL`: The name of the multimodal model you have in Ollama (e.g., `llava`, `moondream`).
--   `USER`: Your name, used in the default polite notice.
+-   `USER`: Your name, used in the default polite notice. 
+    -   You can set your own notice in /setpolitenotice in the app
 -   `ALLOWED_USER_IDS`: A comma-separated list of Telegram user IDs who are allowed to use the bot. If empty, all users are allowed.
 -   `SYSTEM_PROMPT`: A custom system prompt for the model. If not set, a default prompt is used.
 
@@ -81,7 +65,7 @@ The bot is a simple Python application that listens for messages on Telegram. Wh
 -   **Send an image:** The bot will generate a caption for it.
 -   **Send an image with a caption:** The text you provide will be used to guide the model's caption generation.
 -   **/help:** Shows the help message with all commands.
--   **/setsuffix <message>:** Sets a custom suffix for your captions. Use the command without a message to remove it.
+-   **/setpolitenotice <message>:** Sets a custom suffix for your captions. Use the command without a message to remove it.
 
 ## Docker
 

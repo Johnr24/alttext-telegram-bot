@@ -56,7 +56,7 @@ async def set_suffix(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sets or removes a custom suffix for the user."""
     user_id = update.effective_user.id
     if ALLOWED_USER_IDS and user_id not in ALLOWED_USER_IDS:
-        logger.warning(f"Unauthorized access attempt by user_id: {user_id} for /setsuffix")
+        logger.warning(f"Unauthorized access attempt by user_id: {user_id} for /setpolitenotice command")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="Sorry, you are not authorized to use this command."
@@ -80,7 +80,7 @@ async def set_suffix(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="You don't have a custom suffix to remove. To set one, use: /setsuffix <your message>"
+                text="You don't have a polite notice  to remove. To set one, use: /setpolitenotice <your message>"
             )
         return
 
@@ -119,7 +119,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Available commands:\n"
         "/start - Get a welcome message.\n"
         "/help - Show this help message.\n"
-        "/setsuffix <your message> - Set a custom suffix for your captions. "
+        "/setpolitenotice <your message> - Set a custom suffix for your captions. "
         "To remove it, use the command without a message."
     )
     await context.bot.send_message(
