@@ -1,22 +1,31 @@
-# Telegram Image Captioning Bot
+# Telegram Ollama Image Captioning Bot
 
-This bot uses a Hugging Face vision model to generate captions for images sent to it via Telegram. It supports guided captioning, where you can provide a prompt to influence the output.
+This bot connects to a running [Ollama](https://ollama.com/) instance to generate captions for images sent via Telegram. It supports guided captioning and custom suffixes.
 
 ## Features
 
--   Generate image captions using state-of-the-art vision models.
+-   Generate image captions using any multimodal model supported by Ollama (e.g., `llava`, `moondream`).
 -   Guide the caption generation with your own text prompts.
 -   Set custom suffixes for captions.
--   Lazy loading of models to conserve resources.
--   Supports gated models from Hugging Face.
+-   Lightweight bot: the heavy lifting of model inference is handled by a separate Ollama instance.
+
+## How It Works
+
+The bot is a simple Python application that listens for messages on Telegram. When a user sends an image, the bot:
+1.  Encodes the image into base64.
+2.  Sends the image and any user-provided prompt to the Ollama API.
+3.  Receives the generated text from the model.
+4.  Extracts the caption from the response.
+5.  Sends the formatted caption back to the user in the Telegram chat.
 
 ## Setup and Installation
 
 ### Prerequisites
 
 -   Python 3.8+
+-   A running [Ollama](https://ollama.com/) instance.
+-   A multimodal model pulled in Ollama (e.g., `ollama run llava`).
 -   A Telegram Bot Token. You can get one from [BotFather](https://t.me/botfather).
--   A Hugging Face account and User Access Token (for gated models).
 
 ### Installation
 
@@ -47,55 +56,47 @@ This bot uses a Hugging Face vision model to generate captions for images sent t
 ### Configuration (`.env` file)
 
 -   `TELEGRAM_BOT_TOKEN`: Your token from BotFather.
--   `HF_MODEL_NAME`: The Hugging Face model to use. Defaults to a gated Gemma model.
--   `HF_TOKEN`: Your Hugging Face User Access Token. This is **required** for gated models like Gemma.
-    -   You can create a token in your Hugging Face account settings: [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
-    -   You also need to request access to the gated model on its Hugging Face page. For `google/gemma-3n-E4B-it`, you would visit its page and accept the terms.
+-   `OLLAMA_HOST`: The full URL of your Ollama instance's API. Defaults to `http://localhost:11434`.
+-   `OLLAMA_MODEL`: The name of the multimodal model you have in Ollama (e.g., `llava`, `moondream`).
 -   `USER`: Your name, used in the default polite notice.
 -   `ALLOWED_USER_IDS`: A comma-separated list of Telegram user IDs who are allowed to use the bot. If empty, all users are allowed.
--   `SYSTEM_PROMPT`: The system prompt for the model (used by Qwen, not Gemma models).
-
-### Pre-downloading Gated Models for Docker
-
-To run the bot inside Docker without it needing to download models or authenticate with Hugging Face, you must pre-download the model to a local cache directory that gets mounted into the container.
-
-This is the recommended setup for using gated models with Docker.
-
-1.  **Log in to Hugging Face CLI:**
-    ```bash
-    huggingface-cli login
-    ```
-    (This requires `huggingface-hub` which is in `requirements.txt`)
-
-2.  **Create the cache directory:**
-    This directory is mapped as a volume in `docker-compose.yml`.
-    ```bash
-    mkdir -p ./hf_cache
-    ```
-
-3.  **Download the model:**
-    Replace the `repo-id` with your desired model.
-    ```bash
-    huggingface-cli download google/gemma-3n-E4B-it --cache-dir ./hf_cache
-    ```
-
-Now, when you run `docker-compose up`, the bot will find the model files in the mounted volume and won't need to download them.
+-   `SYSTEM_PROMPT`: A custom system prompt for the model. If not set, a default prompt is used.
 
 ### Running the Bot
 
-Once configured, you can run the bot with:
+1.  **Start your Ollama instance.** Make sure it's running and accessible from where you'll run the bot.
 
-```bash
-python bot.py
-```
+2.  **Pull a model (if you haven't already):**
+    ```bash
+    ollama pull llava
+    ```
+
+3.  **Run the bot:**
+    ```bash
+    python bot.py
+    ```
 
 ## Usage
 
 -   **Send an image:** The bot will generate a caption for it.
 -   **Send an image with a caption:** The text you provide will be used to guide the model's caption generation.
 -   **/help:** Shows the help message with all commands.
--   **/setsuffix <message>:** Sets a custom suffix for your captions.
+-   **/setsuffix <message>:** Sets a custom suffix for your captions. Use the command without a message to remove it.
 
-## Supported Models
+## Docker
 
-The bot is configured to work with vision-language models like Qwen, PaliGemma, and Gemma-3n. You can change the model by updating `HF_MODEL_NAME` in your `.env` file. Note that different models may have different performance and resource requirements.
+You can also run this bot inside a Docker container. The `docker-compose.yml` file is configured to build and run the bot's container.
+
+The main consideration is ensuring the bot container can communicate with your Ollama instance.
+
+### Connecting to Ollama on the Host
+
+If you are running Ollama directly on your host machine, you can make it accessible to the Docker container by setting `OLLAMA_HOST` in your `.env` file.
+
+-   **On Linux:** Use `http://172.17.0.1:11434` (the default Docker bridge network gateway).
+-   **On macOS or Windows:** Use `http://host.docker.internal:11434`.
+
+After setting the `OLLAMA_HOST`, you can run the bot with:
+```bash
+docker-compose up --build
+```
