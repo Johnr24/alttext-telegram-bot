@@ -203,11 +203,9 @@ def generate_ocr_text(image: Image.Image) -> str:
         system_prompt = "You are an expert at Optical Character Recognition (OCR). Your task is to accurately transcribe the text from the provided image. Preserve the original formatting, including line breaks, as closely as possible. If the image contains no text, respond with 'No text found in the image.'"
         prompt_text = "Transcribe the text from this image."
 
-        # Construct options for the Ollama client
-        options = {}
-        if OLLAMA_NUM_PREDICT and OLLAMA_NUM_PREDICT.isdigit():
-            options['num_predict'] = int(OLLAMA_NUM_PREDICT)
-            logger.info(f"Setting num_predict (max tokens) to {options['num_predict']}")
+        # Construct options for the Ollama client for OCR
+        options = {'num_predict': 2048}
+        logger.info(f"Setting num_predict (max tokens) for OCR to {options['num_predict']}")
 
         response = client.chat(
             model=OLLAMA_MODEL,
