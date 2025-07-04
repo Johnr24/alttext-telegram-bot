@@ -163,8 +163,21 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
                 }
             ]
         )
-        caption = response['message']['content'].strip()
-        logger.info(f"Generated caption: '{caption}'")
+        raw_caption = response['message']['content'].strip()
+        logger.info(f"Raw generated caption from model: '{raw_caption}'")
+
+        # Extract content between <Description> tags
+        try:
+            start_tag = "<Description>"
+            end_tag = "</Description>"
+            start_index = raw_caption.index(start_tag) + len(start_tag)
+            end_index = raw_caption.index(end_tag, start_index)
+            caption = raw_caption[start_index:end_index].strip()
+            logger.info(f"Extracted caption: '{caption}'")
+        except ValueError:
+            logger.warning("Could not find <Description> tags in the output. Using raw output.")
+            caption = raw_caption
+
         return caption
     except Exception as e:
         logger.error(f"Failed to generate caption with Ollama: {e}")
