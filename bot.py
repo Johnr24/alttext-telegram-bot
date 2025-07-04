@@ -201,7 +201,11 @@ def generate_ocr_text(image: Image.Image) -> str:
         image_b64 = image_to_base64(image)
 
         system_prompt = "You are an expert at Optical Character Recognition (OCR). Your task is to accurately transcribe the text from the provided image. Preserve the original formatting, including line breaks, as closely as possible. If the image contains no text, respond with 'No text found in the image.'"
-        prompt_text = "Transcribe the text from this image."
+        prompt_text = """Extract all visible text from this image in English **without any changes**.
+- **Do not summarize, paraphrase, or infer missing text.**
+- Retain all spacing, punctuation, and formatting exactly as in the image.
+- If text is unclear or partially visible, extract as much as possible without guessing.
+- **Include all text, even if it seems irrelevant or repeated.**"""
 
         # Construct options for the Ollama client for OCR
         # Set num_predict to -1 for unlimited token generation to prevent truncation.
