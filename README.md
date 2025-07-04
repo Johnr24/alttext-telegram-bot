@@ -45,6 +45,7 @@ The bot is a simple Python application that listens for messages on Telegram. Wh
     -   You can set your own notice in /setpolitenotice in the app
 -   `ALLOWED_USER_IDS`: A comma-separated list of Telegram user IDs who are allowed to use the bot. If empty, all users are allowed.
 -   `SYSTEM_PROMPT`: A custom system prompt for the model. If not set, a default prompt is used.
+-   `OLLAMA_NUM_PREDICT`: (Optional) Sets the maximum number of tokens for the model's response. For example, `OLLAMA_NUM_PREDICT=512`.
 
 ### Running the Bot
 
