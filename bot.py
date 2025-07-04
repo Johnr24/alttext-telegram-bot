@@ -2,14 +2,13 @@ import logging
 import os
 from io import BytesIO
 import yaml
-import gc
+import base64
+import ollama
 
-import torch
 from dotenv import load_dotenv
 from PIL import Image
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from transformers import AutoModelForCausalLM, AutoProcessor, AutoTokenizer, AutoModelForVision2Seq
 
 # Setup logging
 logging.basicConfig(
@@ -21,8 +20,8 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-HF_TOKEN = os.getenv("HF_TOKEN")
-HF_MODEL_NAME = os.getenv("HF_MODEL_NAME", "google/gemma-3n-E4B-it")  # Default to Gemma
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 USER = os.getenv("USER", "the user")  # Default to 'john' if USER is not set
 ALLOWED_USER_IDS_STR = os.getenv("ALLOWED_USER_IDS")
 ALLOWED_USER_IDS = [int(uid.strip()) for uid in ALLOWED_USER_IDS_STR.split(',')] if ALLOWED_USER_IDS_STR else []
@@ -51,73 +50,6 @@ def save_user_data(data):
         logger.error(f"Error saving user data to {USER_DATA_FILE}: {e}")
 
 
-# --- Model Lazy Loading ---
-# Global variables to hold the model and processor. They are loaded on demand.
-model = None
-processor = None
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-TORCH_DTYPE = torch.bfloat16 if device.type == 'mps' else torch.float32 # Use bfloat16 for MPS, float32 for CPU
-
-
-def load_model_and_processor():
-    """Loads the model and processor/tokenizer into memory if they are not already loaded."""
-    global model, processor
-    if model is None or processor is None:
-        logger.info(f"Attempting to load model: {HF_MODEL_NAME} on device: {device} with dtype: {TORCH_DTYPE}")
-        try:
-            if "gemma-3n" in HF_MODEL_NAME.lower():
-                # For Gemma-3n models, we use AutoModelForCausalLM and AutoProcessor.
-                model = AutoModelForCausalLM.from_pretrained(
-                    HF_MODEL_NAME,
-                    trust_remote_code=True,
-                    torch_dtype=TORCH_DTYPE,
-                    token=HF_TOKEN
-                )
-                processor = AutoProcessor.from_pretrained(
-                    HF_MODEL_NAME,
-                    trust_remote_code=True,
-                    token=HF_TOKEN
-                )
-            elif "qwen" in HF_MODEL_NAME.lower() or "paligemma" in HF_MODEL_NAME.lower():
-                # For Qwen-VL and PaliGemma models, we use AutoModelForVision2Seq and AutoProcessor.
-                model = AutoModelForVision2Seq.from_pretrained(
-                    HF_MODEL_NAME,
-                    trust_remote_code=True,
-                    torch_dtype=TORCH_DTYPE,
-                    token=HF_TOKEN
-                )
-                processor = AutoProcessor.from_pretrained(
-                    HF_MODEL_NAME,
-                    trust_remote_code=True,
-                    token=HF_TOKEN
-                )
-            else:
-                raise ValueError(f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen, PaliGemma, and Gemma-3n style models.")
-
-            model.to(device)
-            logger.info(f"Model {HF_MODEL_NAME} loaded successfully on {device}.")
-        except Exception as e:
-            logger.error(f"Failed to load model {HF_MODEL_NAME}: {e}")
-            model_cache_dir = f"~/.cache/huggingface/hub/models--{HF_MODEL_NAME.replace('/', '--')}"
-            logger.error(f"This may be due to an incomplete model download. Try removing the cache directory '{model_cache_dir}' and restarting.")
-            model = None
-            processor = None
-            raise
-
-def unload_model_and_processor():
-    """Unloads the model and processor from memory to free up resources."""
-    global model, processor
-    if model is not None or processor is not None:
-        logger.info("Attempting to unload model from memory.")
-        del model
-        del processor
-        model = None
-        processor = None
-        logger.info("Triggering garbage collection.")
-        gc.collect()
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-        logger.info("Model unloaded successfully.")
 
 
 async def set_suffix(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -195,136 +127,48 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=help_text
     )
 
-def generate_caption(image: Image.Image, user_prompt: str) -> str:
-    """Generates a caption for the given image using the selected model."""
-    logger.info(f"Generating caption for image with user prompt: '{user_prompt}'")
-
-    try:
-        load_model_and_processor()
-
-        if "gemma-3n" in HF_MODEL_NAME.lower():
-            # Gemma-3n specific logic
-            text_prompt = "Describe the image."
-            if user_prompt:
-                text_prompt = f"Please describe this image, paying special attention to: {user_prompt}"
-
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {
-                            "type": "text",
-                            "text": text_prompt
-                        }
-                    ]
-                }
-            ]
-
-            prompt = processor.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-
-            inputs = processor(text=[prompt], images=[image], return_tensors="pt")
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-
-            logger.info(f"""Model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
-            if device.type == 'mps':
-                logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
-
-            generated_ids = model.generate(**inputs, max_new_tokens=256)
-            logger.info("Model generation complete.")
-            if device.type == 'mps':
-                logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
-            
-            input_token_len = inputs["input_ids"].shape[1]
-            generated_text = processor.batch_decode(generated_ids[:, input_token_len:], skip_special_tokens=True)[0]
-            caption = generated_text.strip()
-
-        elif "paligemma" in HF_MODEL_NAME.lower():
-            # PaliGemma specific logic
-            text_prompt = "Describe the image."
-            if user_prompt:
-                text_prompt = user_prompt  # Use the user's prompt directly
-
-            inputs = processor(text=text_prompt, images=image, return_tensors="pt").to(device)
-
-            logger.info(f"""Model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
-            if device.type == 'mps':
-                logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
-
-            generated_ids = model.generate(**inputs, max_new_tokens=256)
-            logger.info("Model generation complete.")
-            if device.type == 'mps':
-                logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
-
-            generated_text = processor.decode(generated_ids[0], skip_special_tokens=True)
-            # PaliGemma's output includes the prompt, so we strip it.
-            caption = generated_text[len(text_prompt):].lstrip()
-
-        elif "qwen" in HF_MODEL_NAME.lower():
-            # Qwen-VL specific logic
-            text_prompt = "Describe the image."
-            if user_prompt:
-                text_prompt = f"Please describe this image, paying special attention to: {user_prompt}"
-
-            messages = [
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "image"},
-                        {
-                            "type": "text",
-                            "text": text_prompt
-                        }
-                    ]
-                }
-            ]
-
-            prompt = processor.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-
-            inputs = processor(text=[prompt], images=[image], return_tensors="pt")
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-
-            logger.info(f"""Model inputs prepared. Input IDs shape: {inputs['input_ids'].shape}, Pixel values shape: {inputs['pixel_values'].shape if 'pixel_values' in inputs else 'N/A'}""")
-            if device.type == 'mps':
-                logger.info(f"MPS memory before generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
-
-            generated_ids = model.generate(**inputs, max_new_tokens=256)
-            logger.info("Model generation complete.")
-            if device.type == 'mps':
-                logger.info(f"MPS memory after generation: Allocated={torch.mps.current_allocated_memory() / (1024**2):.2f}MB, Cached={torch.mps.current_cached_memory() / (1024**2):.2f}MB")
-            
-            input_token_len = inputs["input_ids"].shape[1]
-            generated_text = processor.batch_decode(generated_ids[:, input_token_len:], skip_special_tokens=True)[0]
-            caption = generated_text.strip()
-
-        else:
-            return f"Unsupported model type: {HF_MODEL_NAME}. This bot is configured for Qwen, PaliGemma, and Gemma-3n style models."
-
-        logger.info(f"Generated caption: '{caption}'")
-        return caption
-    finally:
-        unload_model_and_processor()
-
-
-import base64
-
 def image_to_base64(image: Image.Image) -> str:
     """Converts a PIL image to a base64 encoded string."""
     buffered = BytesIO()
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+def generate_caption(image: Image.Image, user_prompt: str) -> str:
+    """Generates a caption for the given image using the Ollama API."""
+    logger.info(f"Generating caption for image with user prompt: '{user_prompt}'")
+
+    try:
+        client = ollama.Client(host=OLLAMA_HOST)
+        image_b64 = image_to_base64(image)
+
+        # Construct the prompt
+        prompt_text = "Describe the image."
+        if user_prompt:
+            prompt_text = f"Please describe this image, paying special attention to: {user_prompt}"
+
+        # Use a default system prompt if not provided
+        system_prompt = SYSTEM_PROMPT if SYSTEM_PROMPT else "You are a helpful assistant that describes images in detail."
+
+        response = client.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': system_prompt,
+                },
+                {
+                    'role': 'user',
+                    'content': prompt_text,
+                    'images': [image_b64]
+                }
+            ]
+        )
+        caption = response['message']['content'].strip()
+        logger.info(f"Generated caption: '{caption}'")
+        return caption
+    except Exception as e:
+        logger.error(f"Failed to generate caption with Ollama: {e}")
+        raise
 
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles incoming photos and generates a caption."""
@@ -377,8 +221,17 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN not found. Please create a .env file and add it.")
         return
 
-    if "qwen" in HF_MODEL_NAME.lower() and not SYSTEM_PROMPT:
-        logger.error("SYSTEM_PROMPT not found in .env file. It is required for Qwen models.")
+    if not OLLAMA_MODEL:
+        logger.error("OLLAMA_MODEL not found in .env file. Please specify the Ollama model to use.")
+        return
+
+    # Check if Ollama server is reachable
+    try:
+        client = ollama.Client(host=OLLAMA_HOST)
+        client.list()
+        logger.info(f"Successfully connected to Ollama at {OLLAMA_HOST}")
+    except Exception as e:
+        logger.error(f"Could not connect to Ollama at {OLLAMA_HOST}. Please ensure Ollama is running. Error: {e}")
         return
 
     application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
