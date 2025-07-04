@@ -65,6 +65,7 @@ The bot is a simple Python application that listens for messages on Telegram. Wh
 
 -   **Send an image:** The bot will generate a caption for it.
 -   **Send an image with a caption:** The text you provide will be used to guide the model's caption generation.
+-   **Send an image with the caption `/ocr`:** The bot will perform Optical Character Recognition (OCR) and return the extracted text.
 -   **/help:** Shows the help message with all commands.
 -   **/setpolitenotice <message>:** Sets a custom suffix for your captions. Use the command without a message to remove it.
 

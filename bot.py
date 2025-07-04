@@ -117,6 +117,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Welcome to the Image Captioning Bot! Here's how to use me:\n\n"
         "To generate a caption, simply send an image.\n"
         "To guide the caption generation, provide a text prompt in the image's caption. The model will use your prompt to focus its description. For example, sending an image with the caption 'A black dog playing fetch' will guide the model.\n\n"
+        "To extract text from an image (OCR), send the image with the caption `/ocr`.\n\n"
         "Available commands:\n"
         "/start - Get a welcome message.\n"
         "/help - Show this help message.\n"
@@ -191,8 +192,48 @@ def generate_caption(image: Image.Image, user_prompt: str) -> str:
         logger.error(f"Failed to generate caption with Ollama: {e}")
         raise
 
+def generate_ocr_text(image: Image.Image) -> str:
+    """Extracts text from the given image using the Ollama API for OCR."""
+    logger.info("Performing OCR on image.")
+
+    try:
+        client = ollama.Client(host=OLLAMA_HOST)
+        image_b64 = image_to_base64(image)
+
+        system_prompt = "You are an expert at Optical Character Recognition (OCR). Your task is to accurately transcribe the text from the provided image. Preserve the original formatting, including line breaks, as closely as possible. If the image contains no text, respond with 'No text found in the image.'"
+        prompt_text = "Transcribe the text from this image."
+
+        # Construct options for the Ollama client
+        options = {}
+        if OLLAMA_NUM_PREDICT and OLLAMA_NUM_PREDICT.isdigit():
+            options['num_predict'] = int(OLLAMA_NUM_PREDICT)
+            logger.info(f"Setting num_predict (max tokens) to {options['num_predict']}")
+
+        response = client.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': system_prompt,
+                },
+                {
+                    'role': 'user',
+                    'content': prompt_text,
+                    'images': [image_b64]
+                }
+            ],
+            options=options
+        )
+        ocr_text = response['message']['content'].strip()
+        logger.info(f"Extracted OCR text: '{ocr_text}'")
+        return ocr_text
+    except Exception as e:
+        logger.error(f"Failed to perform OCR with Ollama: {e}")
+        raise
+
+
 async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles incoming photos and generates a caption."""
+    """Handles incoming photos, generates a caption, or performs OCR."""
     user_id = update.effective_user.id
     if ALLOWED_USER_IDS and user_id not in ALLOWED_USER_IDS:
         logger.warning(f"Unauthorized access attempt by user_id: {user_id}")
@@ -205,7 +246,7 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     logger.info(f"Received image from chat_id: {chat_id}")
 
-    user_prompt = update.message.caption
+    user_prompt = update.message.caption.strip() if update.message.caption else ""
 
     await context.bot.send_message(chat_id=chat_id, text="Processing your image...")
 
@@ -225,12 +266,15 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
             image.thumbnail((max_dim, max_dim))
             logger.info(f"Resized image to {image.size} to conserve memory.")
 
-        caption = generate_caption(image, user_prompt)
-
-        user_data = load_user_data()
-        user_suffix = user_data.get('users', {}).get(user_id, {}).get('suffix', DEFAULT_POLITE_NOTICE)
-
-        await context.bot.send_message(chat_id=chat_id, text=f"{caption}\n\n{user_suffix}")
+        if user_prompt.lower() == "/ocr":
+            logger.info("OCR command detected.")
+            ocr_text = generate_ocr_text(image)
+            await context.bot.send_message(chat_id=chat_id, text=f"Extracted Text (OCR):\n\n{ocr_text}")
+        else:
+            caption = generate_caption(image, user_prompt)
+            user_data = load_user_data()
+            user_suffix = user_data.get('users', {}).get(user_id, {}).get('suffix', DEFAULT_POLITE_NOTICE)
+            await context.bot.send_message(chat_id=chat_id, text=f"{caption}\n\n{user_suffix}")
     except Exception as e:
         logger.error(f"An error occurred while processing the image: {e}")
         await context.bot.send_message(chat_id=chat_id, text="Sorry, I couldn't process that image.")
@@ -259,7 +303,7 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("setsuffix", set_suffix))
+    application.add_handler(CommandHandler("setpolitenotice", set_suffix))
     application.add_handler(MessageHandler(filters.PHOTO, handle_image))
 
     logger.info("Bot is running. Press Ctrl-C to stop.")
