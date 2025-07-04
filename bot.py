@@ -259,12 +259,6 @@ async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         image = Image.open(image_stream).convert("RGB")
 
-        # Resize the image to a maximum dimension to conserve memory before processing
-        max_dim = 2048
-        if image.width > max_dim or image.height > max_dim:
-            image.thumbnail((max_dim, max_dim))
-            logger.info(f"Resized image to {image.size} to conserve memory.")
-
         if user_prompt.lower() == "/ocr":
             logger.info("OCR command detected.")
             ocr_text = generate_ocr_text(image)
